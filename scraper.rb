@@ -84,8 +84,8 @@ doc.css('.content-block').each do |content_block|
 
   if existing_entry.empty? # Only insert if the entry doesn't already exist
   # Step 5: Insert the data into the database
-  db.execute("INSERT INTO glenorchy (address, on_notice_to, description, document_description)
-              VALUES (?, ?, ?, ?)", [address, on_notice_to, description, document_description])
+  db.execute("INSERT INTO glenorchy (address, on_notice_to, description, document_description, date_scraped)
+              VALUES (?, ?, ?, ?, ?)", [address, on_notice_to, description, document_description, date_scraped])
 
   logger.info("Data for #{council_reference} saved to database.")
     else
