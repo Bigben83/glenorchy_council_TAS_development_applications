@@ -3,15 +3,26 @@ require 'open-uri'
 require 'sqlite3'
 require 'logger'
 require 'date'
+require 'cgi'
 
 # Set up a logger to log the scraped data
 logger = Logger.new(STDOUT)
 
 # URL of the Glenorchy City Council planning applications page
-main_page_url = "https://www.gcc.tas.gov.au/services/planning-and-building/planning-and-development/planning-applications/"
+url = "https://www.gcc.tas.gov.au/services/planning-and-building/planning-and-development/planning-applications/"
 
-# Open and parse the main page
-main_page = Nokogiri::HTML(open(main_page_url))
+# Step 1: Fetch the page content
+begin
+  logger.info("Fetching page content from: #{url}")
+  page_html = open(url).read
+  logger.info("Successfully fetched page content.")
+rescue => e
+  logger.error("Failed to fetch page content: #{e}")
+  exit
+end
+
+# Step 2: Parse the page content using Nokogiri
+doc = Nokogiri::HTML(page_html)
 
 # Step 3: Initialize the SQLite database
 db = SQLite3::Database.new "data.sqlite"
@@ -51,7 +62,7 @@ date_scraped = Date.today.to_s
 
 
 # Loop through each content block in the main listing
-main_page.css('.content-block').each do |content_block|
+doc.css('.content-block').each do |content_block|
   # Extract the address
   address = content_block.at_css('.content-block__title a').text.strip
 
@@ -68,15 +79,18 @@ main_page.css('.content-block').each do |content_block|
   latitude = content_block.at_css('.content-block__map-link')['data-lat']
   longitude = content_block.at_css('.content-block__map-link')['data-lng']
 
-  # Insert the data into the SQLite database
-  db.execute("INSERT INTO planning_applications (address, on_notice_to, description, document_description)
+  # Step 6: Ensure the entry does not already exist before inserting
+  existing_entry = db.execute("SELECT * FROM glenorchy WHERE council_reference = ?", council_reference )
+
+  if existing_entry.empty? # Only insert if the entry doesn't already exist
+  # Step 5: Insert the data into the database
+  db.execute("INSERT INTO glenorchy (address, on_notice_to, description, document_description)
               VALUES (?, ?, ?, ?)", [address, on_notice_to, description, document_description])
 
-  # Log the inserted data
-  puts "Address: #{address}, Closing Date: #{closing_date}, Description: #{description}, PDF Link: #{pdf_link}, Latitude: #{latitude}, Longitude: #{longitude}"
-  
-  # Log the extracted data
-  logger.info("Address: #{address}, Closing Date: #{closing_date}, Description: #{description}, PDF Link: #{pdf_link}")
+  logger.info("Data for #{council_reference} saved to database.")
+    else
+      logger.info("Duplicate entry for application #{council_reference} found. Skipping insertion.")
+    end
   
   # If you need to handle additional details, such as geolocation, it can be extracted as follows:
   lat = content_block.at_css('.content-block__map-link')['data-lat']
